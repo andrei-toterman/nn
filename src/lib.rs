@@ -9,31 +9,32 @@ pub struct ActivationFunction<F: Func, DF: Func> {
 }
 
 pub struct NeuralNetwork<F: Func, DF: Func> {
+    activation: ActivationFunction<F, DF>,
     activations: Vec<Array2<f64>>,
     weights: Vec<Array2<f64>>,
     biases: Vec<Array2<f64>>,
-    activation: ActivationFunction<F, DF>,
 }
 
 impl<F: Func, DF: Func> NeuralNetwork<F, DF> {
     pub fn new(layer_sizes: &[usize], activation: ActivationFunction<F, DF>) -> Self {
-        let mut weights = Vec::with_capacity(layer_sizes.len());
-        for (l, ln) in layer_sizes.iter().zip(layer_sizes.iter().skip(1)) {
-            weights.push(Array2::from_shape_simple_fn((*ln, *l), rand::random));
-        }
-
         Self {
+            activation,
             activations: layer_sizes
                 .iter()
-                .map(|size| Array2::zeros((*size, 1)))
+                .map(|&size| Array2::zeros((size, 1)))
                 .collect(),
-            weights,
+            weights: layer_sizes
+                .iter()
+                .zip(layer_sizes.iter().skip(1))
+                .map(|(&size, &next_size)| {
+                    Array2::from_shape_simple_fn((next_size, size), rand::random)
+                })
+                .collect(),
             biases: layer_sizes
                 .iter()
                 .skip(1)
-                .map(|size| Array2::from_shape_simple_fn((*size, 1), rand::random))
+                .map(|&size| Array2::from_shape_simple_fn((size, 1), rand::random))
                 .collect(),
-            activation,
         }
     }
 
@@ -64,13 +65,19 @@ impl<F: Func, DF: Func> NeuralNetwork<F, DF> {
         }
     }
 
-    pub fn train(&mut self, data: &[Vec<f64>], expected: &[Vec<f64>], epochs: usize, eta: f64) -> Vec<f64> {
+    pub fn train(
+        &mut self,
+        data: &[Vec<f64>],
+        expected: &[Vec<f64>],
+        epochs: usize,
+        eta: f64,
+    ) -> Vec<f64> {
         let mut mses = Vec::with_capacity(epochs);
-        
+
         for epoch in 0..epochs {
             println!("epoch {}/{}", epoch, epochs);
             let mut mse_per_epoch = 0.0;
-            for  (x, y) in data.iter().zip(expected.iter()) {
+            for (x, y) in data.iter().zip(expected.iter()) {
                 let mut errors = Vec::with_capacity(self.weights.len());
                 let mut weight_deltas = Vec::with_capacity(self.weights.len());
                 let mut bias_deltas = Vec::with_capacity(self.biases.len());
